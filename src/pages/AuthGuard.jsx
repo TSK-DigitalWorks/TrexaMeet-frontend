@@ -1,30 +1,33 @@
+import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import useAuthStore from '../store/auth.store'
-import Button from '../components/common/Button'
-import { redirectToCentralAuth } from '../lib/auth'
+import Loader from '../components/common/Loader'
 
 export default function AuthGuard({ children }) {
-  const user = useAuthStore((state) => state.user)
-  const hydrated = useAuthStore((state) => state.hydrated)
+  const user     = useAuthStore((s) => s.user)
+  const hydrated = useAuthStore((s) => s.hydrated)
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (hydrated && !user) {
+      navigate('/login', { replace: true })
+    }
+  }, [hydrated, user, navigate])
 
   if (!hydrated) {
     return (
-      <div className="main">
-        <div className="card">Checking your Trexa session…</div>
-      </div>
-    )
-  }
-
-  if (!user) {
-    return (
-      <div className="main" style={{ display: 'grid', placeItems: 'center', minHeight: '100vh' }}>
-        <div className="card" style={{ maxWidth: 520 }}>
-          <h2>TrexaMeet needs CentralAuth</h2>
-          <p className="muted">Open this app from Trexa CentralAuth, or pass the access token in the URL after login.</p>
-          <Button onClick={redirectToCentralAuth}>Go to CentralAuth</Button>
+      <div className="auth-loading">
+        <div className="auth-loading-inner">
+          <div className="brand-mark">TM</div>
+          <p className="muted">Starting TrexaMeet…</p>
+          <Loader />
         </div>
       </div>
     )
   }
 
+  if (!user) return null
+
   return children
 }
+
