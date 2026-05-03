@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import Button from '../components/common/Button'
 
-const centralAuth = import.meta.env.VITE_CENTRALAUTH_URL
+// Consistent env var name: VITE_CENTRAL_AUTH_URL
+const centralAuth = import.meta.env.VITE_CENTRAL_AUTH_URL
 
 export default function Signup() {
   const navigate = useNavigate()
@@ -15,12 +16,15 @@ export default function Signup() {
   const [error, setError]       = useState('')
   const [loading, setLoading]   = useState(false)
 
+  // Robust URL construction
+  const base = (centralAuth || '').replace(/\/$/, '')
+
   const handleSignup = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError('')
     try {
-      await axios.post(`${centralAuth}/api/auth/signup`, { name, email, password })
+      await axios.post(`${base}/api/auth/signup`, { name, email, password })
       setStep('verify')
     } catch (err) {
       setError(err?.response?.data?.error || 'Signup failed.')
@@ -34,7 +38,7 @@ export default function Signup() {
     setLoading(true)
     setError('')
     try {
-      await axios.post(`${centralAuth}/api/auth/verify-email`, { email, otp })
+      await axios.post(`${base}/api/auth/verify-email`, { email, otp })
       navigate('/login')
     } catch (err) {
       setError(err?.response?.data?.error || 'Verification failed.')
@@ -65,7 +69,7 @@ export default function Signup() {
                 <label className="label">Password</label>
                 <input className="input" type="password" placeholder="Create a password" value={password} onChange={(e) => setPassword(e.target.value)} required />
               </div>
-              {error && <div className="badge" style={{ background: '#fdeceb', color: '#b42318' }}>{error}</div>}
+              {error && <div className="alert alert-danger">{error}</div>}
               <Button type="submit" disabled={loading}>{loading ? 'Creating…' : 'Create account'}</Button>
             </form>
             <p className="muted" style={{ marginTop: 16, fontSize: 13 }}>
@@ -81,7 +85,7 @@ export default function Signup() {
                 <label className="label">OTP Code</label>
                 <input className="input" placeholder="123456" value={otp} onChange={(e) => setOtp(e.target.value)} required />
               </div>
-              {error && <div className="badge" style={{ background: '#fdeceb', color: '#b42318' }}>{error}</div>}
+              {error && <div className="alert alert-danger">{error}</div>}
               <Button type="submit" disabled={loading}>{loading ? 'Verifying…' : 'Verify email'}</Button>
             </form>
           </>

@@ -14,24 +14,33 @@ import Signup from './pages/Signup'
 import useAuth from './hooks/useAuth'
 import useIncomingCall from './hooks/useIncomingCall'
 
+function DashboardRoutes() {
+  return (
+    <AppLayout>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/new" element={<NewMeeting />} />
+        <Route path="/join" element={<JoinMeeting />} />
+        <Route path="/prejoin/:roomCode" element={<PreJoin />} />
+        <Route path="/history" element={<History />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </AppLayout>
+  )
+}
+
 function ProtectedShell() {
   useAuth()
   useIncomingCall()
+
   return (
     <AuthGuard>
-      <AppLayout>
-        <IncomingCall />
-        <Routes>
-          <Route path="/"                    element={<Home />} />
-          <Route path="/new"                 element={<NewMeeting />} />
-          <Route path="/join"                element={<JoinMeeting />} />
-          <Route path="/prejoin/:roomCode"   element={<PreJoin />} />
-          <Route path="/room/:roomCode"      element={<Room />} />
-          <Route path="/webinar/:roomCode"   element={<WebinarRoom />} />
-          <Route path="/history"             element={<History />} />
-          <Route path="*"                    element={<Navigate to="/" replace />} />
-        </Routes>
-      </AppLayout>
+      <IncomingCall />
+      <Routes>
+        <Route path="/room/:roomCode" element={<Room />} />
+        <Route path="/webinar/:roomCode" element={<WebinarRoom />} />
+        <Route path="/*" element={<DashboardRoutes />} />
+      </Routes>
     </AuthGuard>
   )
 }
@@ -39,13 +48,9 @@ function ProtectedShell() {
 export default function App() {
   return (
     <Routes>
-      {/* Public routes — no auth needed */}
-      <Route path="/login"  element={<Login />} />
+      <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
-
-      {/* Everything else — protected */}
       <Route path="/*" element={<ProtectedShell />} />
     </Routes>
   )
 }
-

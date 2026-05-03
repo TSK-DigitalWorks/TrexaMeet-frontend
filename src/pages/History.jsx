@@ -14,7 +14,7 @@ export default function History() {
   useEffect(() => {
     const load = async () => {
       try {
-        const { data } = await api.get('/api/history')
+        const data = await api.get('/api/history')
         setHistory(data.history || [])
       } finally {
         setLoading(false)

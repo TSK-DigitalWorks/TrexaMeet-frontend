@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { LiveKitRoom } from '@livekit/components-react'
 import api from '../lib/api'
@@ -18,6 +18,8 @@ export default function Room() {
   const livekitToken    = useRoomStore((s) => s.livekitToken)
   const livekitUrl      = useRoomStore((s) => s.livekitUrl)
 
+  const leavingRef = useRef(false)
+
   useEffect(() => {
     if (location.state) {
       setRoomPayload(location.state)
@@ -25,16 +27,20 @@ export default function Room() {
     }
     ;(async () => {
       try {
-        const { data } = await api.post(`/api/rooms/${roomCode}/join`)
+        const data = await api.post(`/api/rooms/${roomCode}/join`)
         setRoomPayload(data)
       } catch (err) {
-        console.error('[TrexaMeet] join failed:', err)
+        console.error('TrexaMeet join failed', err)
+        navigate('/join', { replace: true })
       }
     })()
   }, [roomCode]) // eslint-disable-line
 
   const handleLeave = async () => {
-    try { await api.post(`/api/rooms/${roomCode}/leave`) } catch {}
+    if (leavingRef.current) return
+    leavingRef.current = true
+    // Fire-and-forget the leave API — don't await it
+    api.post(`/api/rooms/${roomCode}/leave`).catch(() => {})
     resetRoom()
     navigate('/')
   }

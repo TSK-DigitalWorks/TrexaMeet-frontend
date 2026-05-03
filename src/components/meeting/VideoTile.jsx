@@ -1,48 +1,123 @@
 import { VideoTrack } from '@livekit/components-react'
 import { Track } from 'livekit-client'
+import { MicOffIcon, ScreenShareIcon } from './icons'
 
-export default function VideoTile({ trackRef }) {
+function ExpandIcon({ size = 15 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="15 3 21 3 21 9" />
+      <polyline points="9 21 3 21 3 15" />
+      <line x1="21" y1="3" x2="14" y2="10" />
+      <line x1="3" y1="21" x2="10" y2="14" />
+    </svg>
+  )
+}
+
+function CollapseIcon({ size = 15 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="4 14 10 14 10 20" />
+      <polyline points="20 10 14 10 14 4" />
+      <line x1="10" y1="14" x2="3" y2="21" />
+      <line x1="21" y1="3" x2="14" y2="10" />
+    </svg>
+  )
+}
+
+export default function VideoTile({ trackRef, variant = 'tile', onExpand, onCollapse }) {
   const participant = trackRef?.participant
   const isScreenShare = trackRef?.source === Track.Source.ScreenShare
-  const hasVideo = trackRef?.publication?.isSubscribed && trackRef?.publication?.track
+
+  // FIX: derive video presence from participant state, not just track subscription
+  // This prevents the blank avatar bug when camera is toggled off then on
+  const cameraEnabled = participant?.isCameraEnabled
+  const hasVideo = isScreenShare
+    ? (trackRef?.publication?.isSubscribed && trackRef?.publication?.track)
+    : cameraEnabled && trackRef?.publication?.isSubscribed && trackRef?.publication?.track
+
+  const isSpeaking = participant?.isSpeaking
+  const isMuted = !participant?.isMicrophoneEnabled
+  const isLocal = participant?.isLocal
+
+  const initials = (participant?.name || participant?.identity || 'U')
+    .split(' ')
+    .map(w => w[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+
+  // Screen-share: contain (no stretching) — Camera: cover (fills nicely)
+  const objectFit = isScreenShare ? 'contain' : 'cover'
 
   return (
-    <div className="video-tile" style={{ position: 'relative', overflow: 'hidden' }}>
+    <article
+      className={[
+        'vtile',
+        `vtile--${variant}`,
+        isSpeaking ? 'is-speaking' : '',
+        !hasVideo ? 'is-novideo' : '',
+      ].filter(Boolean).join(' ')}
+      aria-label={`${participant?.name || participant?.identity || 'Participant'}${isLocal ? ' (you)' : ''}`}
+    >
+      {/* Video — always render when hasVideo, style enforces fit */}
       {hasVideo ? (
         <VideoTrack
           trackRef={trackRef}
-          style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 18, position: 'absolute', inset: 0 }}
+          className="vtile-track"
+          style={{ objectFit }}
         />
       ) : (
-        <div style={{ flex: 1, display: 'grid', placeItems: 'center', minHeight: 150 }}>
-          <div
-            className="avatar"
-            style={{ width: 64, height: 64, fontSize: 26, background: '#1f3b41', color: '#9dd0d5' }}
-          >
-            {participant?.name?.charAt(0)?.toUpperCase() || 'U'}
-          </div>
+        // Avatar — always shown when no video (cam off, or toggled back off)
+        <div className="vtile-avatar-bg">
+          <div className="vtile-avatar">{initials}</div>
         </div>
       )}
 
-      <div
-        style={{
-          position: 'absolute', bottom: 10, left: 10, right: 10,
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-        }}
-      >
-        <span style={{ color: 'white', fontWeight: 600, fontSize: 13 }}>
-          {participant?.name || participant?.identity || 'User'}
-          {participant?.isLocal ? ' (You)' : ''}
-        </span>
-        <div className="row">
-          {!participant?.isMicrophoneEnabled && (
-            <span className="badge" style={{ background: 'rgba(0,0,0,0.55)', color: '#f87171', fontSize: 11 }}>Muted</span>
+      {/* Expand button (top-right) */}
+      {onExpand && (
+        <button
+          type="button"
+          className="vtile-expand-btn"
+          onClick={onExpand}
+          aria-label={`Expand ${participant?.name || 'participant'}`}
+          title="Expand to full view"
+        >
+          <ExpandIcon size={13} />
+        </button>
+      )}
+      {onCollapse && (
+        <button
+          type="button"
+          className="vtile-expand-btn vtile-expand-btn--collapse"
+          onClick={onCollapse}
+          aria-label="Exit full view"
+          title="Exit full view"
+        >
+          <CollapseIcon size={13} />
+        </button>
+      )}
+
+      {/* Name bar */}
+      <div className="vtile-bar">
+        <div className="vtile-name-row">
+          {isMuted && (
+            <span className="vtile-mute-icon" aria-label="Microphone off">
+              <MicOffIcon size={13} />
+            </span>
           )}
-          {isScreenShare && (
-            <span className="badge" style={{ background: 'rgba(0,0,0,0.55)', color: '#6ee7b7', fontSize: 11 }}>Screen</span>
-          )}
+          <span className="vtile-name">
+            {participant?.name || participant?.identity || 'User'}
+            {isLocal ? ' (You)' : ''}
+          </span>
         </div>
+        {isScreenShare && (
+          <span className="vtile-badge">
+            <ScreenShareIcon size={12} /> Presenting
+          </span>
+        )}
       </div>
-    </div>
+    </article>
   )
 }

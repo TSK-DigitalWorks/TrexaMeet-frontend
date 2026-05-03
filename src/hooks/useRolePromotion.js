@@ -31,13 +31,13 @@ export default function useRolePromotion(roomCode) {
 
           try {
             // Get a fresh token matching the new role
-            const { data } = await api.post(`/api/rooms/${roomCode}/join`)
-            const url = data.livekit_url || livekitUrl
-            if (url && data.livekit_token) {
-              await lkRoom.connect(url, data.livekit_token, { autoSubscribe: true })
+            const data = await api.post(`/api/rooms/${roomCode}/join`)
+            const url = data.livekiturl || livekitUrl
+            if (url && data.livekittoken) {
+              await lkRoom.connect(url, data.livekittoken, { autoSubscribe: true })
             }
           } catch (err) {
-            console.error('[TrexaMeet] role reconnect failed:', err)
+            console.error('TrexaMeet role reconnect failed', err)
           }
         }
       )

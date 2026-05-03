@@ -4,21 +4,23 @@ import useRoomStore from '../store/room.store'
 import { supabase } from '../lib/supabase'
 
 export default function useIncomingCall() {
-  const user = useAuthStore((state) => state.user)
-  const setIncomingInvite = useRoomStore((state) => state.setIncomingInvite)
+  const user             = useAuthStore((s) => s.user)
+  const setIncomingInvite = useRoomStore((s) => s.setIncomingInvite)
 
   useEffect(() => {
-    if (!supabase || !user?.user_id) return
+    // user_id is now always normalized by auth.store — safe to use either field
+    const userId = user?.user_id || user?.userid
+    if (!supabase || !userId) return
 
     const channel = supabase
-      .channel(`room-invites-${user.user_id}`)
+      .channel(`room-invites-${userId}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'room_invites',
-          filter: `invited_user_id=eq.${user.user_id}`
+          filter: `invited_user_id=eq.${userId}`,
         },
         (payload) => {
           setIncomingInvite(payload.new)
@@ -26,8 +28,6 @@ export default function useIncomingCall() {
       )
       .subscribe()
 
-    return () => {
-      supabase.removeChannel(channel)
-    }
+    return () => { supabase.removeChannel(channel) }
   }, [setIncomingInvite, user?.user_id])
 }

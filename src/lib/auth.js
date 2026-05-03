@@ -1,64 +1,86 @@
 import { jwtDecode } from 'jwt-decode'
 
+const SESSION_KEY  = 'trexa_session'
+const REFRESH_KEY  = 'trexa_refresh'
+
+// ── Storage helpers — sessionStorage keeps token alive across same-tab reloads
+// sessionStorage works fine in real browsers; only blocked in sandboxed iframes
+const read  = (k) => { try { const v = sessionStorage.getItem(k); return v ? JSON.parse(v) : null } catch { return null } }
+const write = (k, v) => { try { sessionStorage.setItem(k, JSON.stringify(v)) } catch {} }
+const erase = (k) => { try { sessionStorage.removeItem(k) } catch {} }
+
+// ── In-memory cache (avoids JSON.parse on every call) ──────────────────────
 let memorySession = null
 
-const cleanUrlTokenParams = () => {
+// ── URL cleaner ─────────────────────────────────────────────────────────────
+const cleanUrlParams = () => {
   const url = new URL(window.location.href)
-  const keys = ['access_token', 'refresh_token', 'user_id', 'name', 'email']
+  const keys = ['accesstoken', 'refreshtoken', 'userid', 'name', 'email']
   let changed = false
-  keys.forEach((key) => {
-    if (url.searchParams.has(key)) {
-      url.searchParams.delete(key)
-      changed = true
-    }
-  })
-  if (changed) {
-    window.history.replaceState({}, '', url.toString())
-  }
+  keys.forEach((k) => { if (url.searchParams.has(k)) { url.searchParams.delete(k); changed = true } })
+  if (changed) window.history.replaceState({}, '', url.toString())
 }
 
+// ── Bootstrap from CentralAuth redirect URL params ──────────────────────────
 export const bootstrapCentralAuthSession = () => {
-  const url = new URL(window.location.href)
-  const access_token = url.searchParams.get('access_token')
-  const user_id = url.searchParams.get('user_id')
-  const name = url.searchParams.get('name')
-  const email = url.searchParams.get('email')
+  const url      = new URL(window.location.href)
+  const rawToken = url.searchParams.get('accesstoken')
+  if (!rawToken) return null
 
-  if (access_token) {
-    let user = null
-    try {
-      const decoded = jwtDecode(access_token)
-      user = {
-        user_id: decoded.user_id || user_id,
-        name: decoded.name || name || 'User',
-        email: decoded.email || email || ''
-      }
-    } catch {
-      user = { user_id, name: name || 'User', email: email || '' }
+  const rawRefresh = url.searchParams.get('refreshtoken') || ''
+  const userid     = url.searchParams.get('userid')
+  const name       = url.searchParams.get('name')
+  const email    = url.searchParams.get('email')
+
+  let user = null
+  try {
+    const d = jwtDecode(rawToken)
+    user = {
+      user_id: d.userid || d.user_id || userid,
+      userid:  d.userid || d.user_id || userid,
+      name:    d.name  || name  || 'User',
+      email:   d.email || email,
     }
+  } catch {
+    user = { user_id: userid, userid, name: name || 'User', email }
+  }
 
-    memorySession = { access_token, user }
-    cleanUrlTokenParams()
+  const session = { accessToken: rawToken, user }
+  memorySession = session
+  write(SESSION_KEY, session)
+  if (rawRefresh) write(REFRESH_KEY, rawRefresh)
+  cleanUrlParams()
+  return session
+}
+
+// ── Get current session — memory first, then sessionStorage ─────────────────
+export const getSession = () => {
+  if (memorySession) return memorySession
+  const stored = read(SESSION_KEY)
+  if (stored?.accessToken && stored?.user) {
+    memorySession = stored   // repopulate cache
     return memorySession
   }
-
-  return memorySession
+  return null
 }
 
-export const getSession = () => memorySession
-
+// ── Save session (called after login form / token refresh) ──────────────────
 export const setSession = (session) => {
-  memorySession = session
+  const token = session?.accessToken || session?.accesstoken
+  const user  = session?.user
+  if (!token || !user) return null
+  memorySession = { accessToken: token, user }
+  write(SESSION_KEY, memorySession)
   return memorySession
 }
 
+// ── Save refresh token separately ───────────────────────────────────────────
+export const setRefreshToken = (token) => { if (token) write(REFRESH_KEY, token) }
+export const getRefreshToken = () => read(REFRESH_KEY)
+
+// ── Clear everything ────────────────────────────────────────────────────────
 export const clearSession = () => {
   memorySession = null
-}
-
-export const redirectToCentralAuth = () => {
-  const returnUrl = encodeURIComponent(window.location.href)
-  const centralAuthUrl = import.meta.env.VITE_CENTRALAUTH_URL
-  if (!centralAuthUrl) return
-  window.location.href = `${centralAuthUrl}?return_url=${returnUrl}`
+  erase(SESSION_KEY)
+  erase(REFRESH_KEY)
 }

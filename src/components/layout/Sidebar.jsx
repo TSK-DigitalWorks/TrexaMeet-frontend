@@ -1,33 +1,65 @@
 import { NavLink } from 'react-router-dom'
 import useAuthStore from '../../store/auth.store'
 import Avatar from '../common/Avatar'
+import logoImg from '/logo.png'
 
-export default function Sidebar() {
-  const user = useAuthStore((state) => state.user)
+export default function Sidebar({ isOpen, onClose }) {
+  const user = useAuthStore((s) => s.user)
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
+      {/* Brand */}
       <div className="brand">
-        <div className="brand-logo">TM</div>
-        <div>
+        <img src={logoImg} alt="TrexaMeet" className="brand-logo-img" />
+        <div className="brand-text">
           <strong>TrexaMeet</strong>
-          <p>Calls, groups, webinars</p>
+          <span>Video &amp; Calls</span>
         </div>
       </div>
 
+      {/* Nav */}
       <nav className="nav-links">
-        <NavLink to="/" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Home</NavLink>
-        <NavLink to="/new" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>New meeting</NavLink>
-        <NavLink to="/join" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>Join</NavLink>
-        <NavLink to="/history" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>History</NavLink>
+        <NavLink to="/" end className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+          Home
+        </NavLink>
+
+        <NavLink to="/new" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M15 10l4.553-2.276A1 1 0 0 1 21 8.723v6.554a1 1 0 0 1-1.447.894L15 14"/>
+            <rect x="2" y="7" width="13" height="10" rx="2"/>
+          </svg>
+          New Meeting
+        </NavLink>
+
+        <NavLink to="/join" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+            <polyline points="10 17 15 12 10 7"/>
+            <line x1="15" y1="12" x2="3" y2="12"/>
+          </svg>
+          Join
+        </NavLink>
+
+        <NavLink to="/history" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+          History
+        </NavLink>
       </nav>
 
-      <div className="panel" style={{ marginTop: 'auto' }}>
-        <div className="row" style={{ alignItems: 'center', flexWrap: 'nowrap' }}>
+      {/* User footer */}
+      <div className="sidebar-footer">
+        <div className="user-row">
           <Avatar name={user?.name} />
-          <div>
+          <div className="user-info">
             <strong>{user?.name || 'Trexa User'}</strong>
-            <div className="muted" style={{ fontSize: 14 }}>{user?.email || 'Signed in from CentralAuth'}</div>
+            <span>{user?.email}</span>
           </div>
         </div>
       </div>

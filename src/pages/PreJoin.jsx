@@ -1,88 +1,308 @@
-import { useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import useMediaDevices from '../hooks/useMediaDevices'
-import useRoomStore from '../store/room.store'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import api from '../lib/api'
+import useAuth from '../hooks/useAuth'
+import {
+  MicOnIcon, MicOffIcon,
+  CameraOnIcon, CameraOffIcon,
+  RefreshIcon
+} from '../components/meeting/icons'
 import Button from '../components/common/Button'
+import useRoomStore from '../store/room.store'
 
 export default function PreJoin() {
-  const navigate = useNavigate()
-  const { roomCode } = useParams()
-  const { cameras, microphones, loading } = useMediaDevices()
-  const preJoin = useRoomStore((state) => state.preJoin)
-  const updatePreJoin = useRoomStore((state) => state.updatePreJoin)
-  const setRoomPayload = useRoomStore((state) => state.setRoomPayload)
-  const [joining, setJoining] = useState(false)
-  const [error, setError] = useState('')
+  const { roomCode: code } = useParams()
+  const navigate    = useNavigate()
+  const location    = useLocation()
+  const { user }    = useAuth()
+  const setRoomPayload = useRoomStore((s) => s.setRoomPayload)
+  const updatePreJoin  = useRoomStore((s) => s.updatePreJoin)
 
-  const previewText = useMemo(() => {
-    if (loading) return 'Checking your camera and microphone…'
-    return `Found ${cameras.length} camera(s) and ${microphones.length} microphone(s)`
-  }, [cameras.length, loading, microphones.length])
+  const videoRef    = useRef(null)
+  const streamRef   = useRef(null)
 
+  const [micOn,     setMicOn]     = useState(true)
+  const [camOn,     setCamOn]     = useState(true)
+  const [devices,   setDevices]   = useState({ audio: [], video: [] })
+  const [selAudio,  setSelAudio]  = useState('')
+  const [selVideo,  setSelVideo]  = useState('')
+  const [stream,    setStream]    = useState(null)   // ← tracked as state
+  const [joining,   setJoining]   = useState(false)
+  const [error,     setError]     = useState('')
+
+  // ── FIX 1: srcObject must be set imperatively, NOT as a JSX prop ──
+  // Every time `stream` state changes, assign it to the video element
+  useEffect(() => {
+    const el = videoRef.current
+    if (!el || !stream) return
+    el.srcObject = stream
+    el.play().catch(() => {
+      // Autoplay blocked (e.g. in some browsers until user gesture)
+      // Adding muted + playsinline in JSX already covers most cases
+    })
+  }, [stream])
+
+  const startStream = useCallback(async (audioId, videoId) => {
+    try {
+      // Stop previous tracks before requesting new ones
+      streamRef.current?.getTracks().forEach((t) => t.stop())
+
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        audio: audioId ? { deviceId: { exact: audioId } } : true,
+        video: videoId ? { deviceId: { exact: videoId } } : true
+      })
+
+      streamRef.current = newStream
+      setStream(newStream)   // triggers the useEffect above
+      setError('')
+    } catch (err) {
+      setError(
+        err.name === 'NotAllowedError'
+          ? 'Camera or microphone access was denied. Allow access in browser settings.'
+          : 'Unable to access camera or microphone.'
+      )
+    }
+  }, [])
+
+  // ── Enumerate devices on mount, then start stream ────────────────
+  useEffect(() => {
+    let cancelled = false
+
+    navigator.mediaDevices.enumerateDevices().then((list) => {
+      if (cancelled) return
+      const audio = list.filter((d) => d.kind === 'audioinput')
+      const video = list.filter((d) => d.kind === 'videoinput')
+      setDevices({ audio, video })
+
+      const aId = audio[0]?.deviceId || ''
+      const vId = video[0]?.deviceId || ''
+      setSelAudio(aId)
+      setSelVideo(vId)
+      startStream(aId, vId)
+    })
+
+    return () => {
+      cancelled = true
+      streamRef.current?.getTracks().forEach((t) => t.stop())
+    }
+  }, [startStream])
+
+  // ── Toggle mic ───────────────────────────────────────────────────
+  const handleToggleMic = () => {
+    streamRef.current?.getAudioTracks().forEach((t) => {
+      t.enabled = !t.enabled
+    })
+    setMicOn((v) => !v)
+  }
+
+  // ── Toggle cam ───────────────────────────────────────────────────
+  const handleToggleCam = () => {
+    streamRef.current?.getVideoTracks().forEach((t) => {
+      t.enabled = !t.enabled
+    })
+    setCamOn((v) => !v)
+  }
+
+  // ── FIX 2: Correct initial from user name ────────────────────────
+  const initials = (user?.name || user?.email || 'User')
+    .split(' ')
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase() || 'U'
+
+  // ── Join ─────────────────────────────────────────────────────────
   const handleJoin = async () => {
     setJoining(true)
     setError('')
     try {
-      const { data } = await api.post(`/api/rooms/${roomCode}/join`)
+      // Save mic/cam choice to Zustand BEFORE navigating
+      updatePreJoin({ micEnabled: micOn, camEnabled: camOn })
+
+      // Stop local preview stream before handing off to LiveKit
+      streamRef.current?.getTracks().forEach((t) => t.stop())
+
+      // If we already have the token (creator coming from NewMeeting), skip the API call
+      if (location.state?.livekittoken) {
+        setRoomPayload(location.state)
+        navigate(
+          location.state.room?.type === 'webinar' ? `/webinar/${code}` : `/room/${code}`,
+          { state: location.state }
+        )
+        return
+      }
+
+      // Otherwise (joining via code) — fetch token from backend
+      const data = await api.post(`/api/rooms/${code}/join`)
       setRoomPayload(data)
-      const route = data.room.type === 'webinar' ? `/webinar/${roomCode}` : `/room/${roomCode}`
-      navigate(route, { state: data })
+      navigate(
+        data.room?.type === 'webinar' ? `/webinar/${code}` : `/room/${code}`,
+        { state: data }
+      )
     } catch (err) {
-      setError(err?.response?.data?.error || 'Failed to join room')
-    } finally {
+      setError(err?.response?.data?.error || 'Unable to join the meeting. Please try again.')
       setJoining(false)
     }
   }
 
   return (
-    <div className="page-stack">
-      <div className="card" style={{ maxWidth: 860 }}>
-        <h3>Pre-join setup</h3>
-        <p className="muted">Room: {roomCode}</p>
-        <div className="card-grid" style={{ marginTop: 16 }}>
-          <div className="panel">
-            <div className="video-tile" style={{ minHeight: 240 }}>
-              <div>
-                <div className="badge">Preview</div>
-                <p style={{ marginTop: 10, color: '#d7e3e6' }}>{previewText}</p>
+    <div className="prejoin-page">
+      <div className="prejoin-card">
+
+        {/* ── Preview ───────────────────────────────── */}
+        <div className="prejoin-preview">
+
+          {/*
+            FIX 1 — video element always rendered;
+            visibility toggled via CSS so the ref is always attached.
+            srcObject is assigned imperatively in the useEffect above.
+          */}
+          <video
+            ref={videoRef}
+            className="prejoin-video"
+            style={{ display: camOn ? 'block' : 'none' }}
+            autoPlay
+            muted
+            playsInline
+          />
+
+          {/* Avatar shown only when cam is off */}
+          {!camOn && (
+            <div className="prejoin-novideo">
+              <div className="prejoin-avatar">{initials}</div>
+            </div>
+          )}
+
+          {/* Overlay controls */}
+          <div className="prejoin-overlay-btns">
+            <button
+              type="button"
+              className={`pj-icon-btn ${!micOn ? 'pj-icon-btn--off' : ''}`}
+              onClick={handleToggleMic}
+              aria-label={micOn ? 'Mute microphone' : 'Unmute microphone'}
+              title={micOn ? 'Mute' : 'Unmute'}
+            >
+              {micOn ? <MicOnIcon size={17} /> : <MicOffIcon size={17} />}
+            </button>
+
+            <button
+              type="button"
+              className={`pj-icon-btn ${!camOn ? 'pj-icon-btn--off' : ''}`}
+              onClick={handleToggleCam}
+              aria-label={camOn ? 'Stop video' : 'Start video'}
+              title={camOn ? 'Stop video' : 'Start video'}
+            >
+              {camOn ? <CameraOnIcon size={17} /> : <CameraOffIcon size={17} />}
+            </button>
+
+            <button
+              type="button"
+              className="pj-icon-btn"
+              onClick={() => startStream(selAudio, selVideo)}
+              aria-label="Refresh camera feed"
+              title="Refresh camera"
+            >
+              <RefreshIcon size={17} />
+            </button>
+          </div>
+        </div>
+
+        {/* ── Info + join ───────────────────────────── */}
+        <div className="prejoin-info">
+
+          <div className="prejoin-meta">
+            <h1>Ready to join?</h1>
+            <p>Joining as <strong>{user?.name || user?.email}</strong></p>
+          </div>
+
+          {error && (
+            <div className="prejoin-error" role="alert">
+              <svg fill="none" stroke="currentColor" strokeWidth="2"
+                   viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8"  x2="12"   y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              {error}
+            </div>
+          )}
+
+          <form className="form-grid" onSubmit={(e) => { e.preventDefault(); handleJoin(); }}>
+            {/* Device pickers */}
+            <div className="prejoin-devices">
+              <div className="prejoin-device-row">
+                <span className="pj-device-label">
+                  <MicOnIcon size={13} /> Microphone
+                </span>
+                <select
+                  className="pj-select"
+                  value={selAudio}
+                  onChange={(e) => {
+                    setSelAudio(e.target.value)
+                    startStream(e.target.value, selVideo)
+                  }}
+                  aria-label="Select microphone"
+                >
+                  {devices.audio.length === 0
+                    ? <option value="">Default microphone</option>
+                    : devices.audio.map((d) => (
+                        <option key={d.deviceId} value={d.deviceId}>
+                          {d.label || `Microphone ${d.deviceId.slice(0, 8)}`}
+                        </option>
+                      ))
+                  }
+                </select>
+              </div>
+
+              <div className="prejoin-device-row">
+                <span className="pj-device-label">
+                  <CameraOnIcon size={13} /> Camera
+                </span>
+                <select
+                  className="pj-select"
+                  value={selVideo}
+                  onChange={(e) => {
+                    setSelVideo(e.target.value)
+                    startStream(selAudio, e.target.value)
+                  }}
+                  aria-label="Select camera"
+                >
+                  {devices.video.length === 0
+                    ? <option value="">Default camera</option>
+                    : devices.video.map((d) => (
+                        <option key={d.deviceId} value={d.deviceId}>
+                          {d.label || `Camera ${d.deviceId.slice(0, 8)}`}
+                        </option>
+                      ))
+                  }
+                </select>
               </div>
             </div>
-          </div>
-          <div className="panel form-grid">
-            <div>
-              <label className="label">Microphone</label>
-              <select
-                className="select"
-                value={preJoin.selectedMicId}
-                onChange={(e) => updatePreJoin({ selectedMicId: e.target.value })}
-              >
-                <option value="">Default microphone</option>
-                {microphones.map((item) => <option key={item.deviceId} value={item.deviceId}>{item.label || 'Microphone'}</option>)}
-              </select>
+
+            {/* State chips */}
+            <div className="prejoin-state-row">
+              <span className={`pj-state-chip ${micOn ? 'pj-state-chip--on' : 'pj-state-chip--off'}`}>
+                {micOn ? <MicOnIcon size={12} /> : <MicOffIcon size={12} />}
+                {micOn ? 'Microphone on' : 'Microphone off'}
+              </span>
+              <span className={`pj-state-chip ${camOn ? 'pj-state-chip--on' : 'pj-state-chip--off'}`}>
+                {camOn ? <CameraOnIcon size={12} /> : <CameraOffIcon size={12} />}
+                {camOn ? 'Camera on' : 'Camera off'}
+              </span>
             </div>
-            <div>
-              <label className="label">Camera</label>
-              <select
-                className="select"
-                value={preJoin.selectedCameraId}
-                onChange={(e) => updatePreJoin({ selectedCameraId: e.target.value })}
-              >
-                <option value="">Default camera</option>
-                {cameras.map((item) => <option key={item.deviceId} value={item.deviceId}>{item.label || 'Camera'}</option>)}
-              </select>
-            </div>
-            <div className="row">
-              <Button type="button" variant="secondary" onClick={() => updatePreJoin({ micEnabled: !preJoin.micEnabled })}>
-                Mic: {preJoin.micEnabled ? 'On' : 'Off'}
+
+            {error && <div className="alert alert-danger">{error}</div>}
+
+            <div className="row" style={{ marginTop: 8 }}>
+              <Button type="submit" disabled={joining} style={{ flex: 1 }}>
+                {joining ? 'Joining…' : 'Join Now'}
               </Button>
-              <Button type="button" variant="secondary" onClick={() => updatePreJoin({ camEnabled: !preJoin.camEnabled })}>
-                Camera: {preJoin.camEnabled ? 'On' : 'Off'}
+              <Button type="button" variant="secondary" onClick={() => window.history.back()} style={{ flex: 1 }}>
+                Cancel
               </Button>
             </div>
-            {error ? <div className="badge" style={{ background: '#fdeceb', color: '#b42318' }}>{error}</div> : null}
-            <Button type="button" onClick={handleJoin}>{joining ? 'Joining…' : 'Join now'}</Button>
-          </div>
+          </form>
+
         </div>
       </div>
     </div>

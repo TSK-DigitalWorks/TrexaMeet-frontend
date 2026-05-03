@@ -1,83 +1,66 @@
 import { useDataChannel, useLocalParticipant } from '@livekit/components-react'
 import { useState, useRef, useEffect } from 'react'
-import Button from '../common/Button'
+import { SendIcon } from './icons'
 
 const encoder = new TextEncoder()
-const decoder = new TextDecoder()
 
-export default function ChatPanel() {
-  const [messages, setMessages] = useState([])
+export default function ChatPanel({ messages = [], onSend }) {
   const [text, setText] = useState('')
   const endRef = useRef(null)
   const { localParticipant } = useLocalParticipant()
 
-  const { send } = useDataChannel('trexa-chat', (msg) => {
-    try {
-      const parsed = JSON.parse(decoder.decode(msg.payload))
-      setMessages((prev) => [...prev, { ...parsed, own: false }])
-    } catch {}
-  })
-
-  const sendMsg = (e) => {
-    e.preventDefault()
-    const trimmed = text.trim()
-    if (!trimmed) return
-
-    const payload = {
-      text: trimmed,
-      sender: localParticipant.name || localParticipant.identity,
-      ts: Date.now()
-    }
-    send(encoder.encode(JSON.stringify(payload)), { reliable: true })
-    setMessages((prev) => [...prev, { ...payload, own: true }])
-    setText('')
-  }
+  // useDataChannel here is SEND-only — receive is handled in MeetingRoom
+  const { send } = useDataChannel('trexa-chat', () => {})
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  return (
-    <div
-      className="panel"
-      style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 400 }}
-    >
-      <h3 style={{ margin: 0 }}>Chat</h3>
+  const sendMsg = (e) => {
+    e.preventDefault()
+    const trimmed = text.trim()
+    if (!trimmed) return
+    const payload = { text: trimmed, sender: localParticipant?.name || localParticipant?.identity, ts: Date.now() }
+    send(encoder.encode(JSON.stringify(payload)), { reliable: true })
+    onSend?.(trimmed) // add to parent state as own message
+    setText('')
+  }
 
-      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+  return (
+    <div className="chat-panel">
+      <div className="chat-feed">
         {messages.length === 0 ? (
-          <p className="muted">No messages yet.</p>
+          <div className="rail-empty">
+            <p>No messages yet</p>
+            <span>Messages shared in this meeting will appear here.</span>
+          </div>
         ) : (
           messages.map((msg, i) => (
-            <div key={i} style={{ textAlign: msg.own ? 'right' : 'left' }}>
-              <div className="muted" style={{ fontSize: 11, marginBottom: 2 }}>{msg.sender}</div>
-              <span
-                className="badge"
-                style={{
-                  display: 'inline-block',
-                  maxWidth: '85%',
-                  wordBreak: 'break-word',
-                  background: msg.own ? '#e8f4f5' : '#f3f3f3',
-                  color: msg.own ? '#0f5b61' : '#2c2c2c'
-                }}
-              >
-                {msg.text}
-              </span>
+            <div key={i} className={`chat-msg ${msg.own ? 'chat-msg--own' : ''}`}>
+              <div className="chat-msg-meta">
+                <span className="chat-msg-sender">{msg.own ? 'You' : msg.sender}</span>
+                <span className="chat-msg-time">
+                  {new Date(msg.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+              <div className="chat-msg-bubble">{msg.text}</div>
             </div>
           ))
         )}
         <div ref={endRef} />
       </div>
 
-      <form onSubmit={sendMsg} className="row">
+      <form onSubmit={sendMsg} className="chat-compose">
         <input
-          className="input"
-          style={{ flex: 1 }}
+          className="chat-input"
           value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Type a message…"
+          onChange={e => setText(e.target.value)}
+          placeholder="Send a message…"
+          autoComplete="off"
         />
-        <Button type="submit">Send</Button>
+        <button type="submit" className="chat-send" disabled={!text.trim()} aria-label="Send message">
+          <SendIcon size={15} />
+        </button>
       </form>
     </div>
   )
