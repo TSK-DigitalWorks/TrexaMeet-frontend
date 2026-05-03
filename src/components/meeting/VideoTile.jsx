@@ -1,8 +1,10 @@
+import { useState, useRef, useCallback } from 'react'
 import { VideoTrack } from '@livekit/components-react'
 import { Track } from 'livekit-client'
 import { MicOffIcon, ScreenShareIcon } from './icons'
 
-function ExpandIcon({ size = 15 }) {
+// Expand to spotlight view (in-app)
+function ExpandIcon({ size = 13 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
       stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -14,7 +16,8 @@ function ExpandIcon({ size = 15 }) {
   )
 }
 
-function CollapseIcon({ size = 15 }) {
+// Collapse from spotlight view
+function CollapseIcon({ size = 13 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
       stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -26,12 +29,38 @@ function CollapseIcon({ size = 15 }) {
   )
 }
 
-export default function VideoTile({ trackRef, variant = 'tile', onExpand, onCollapse }) {
+// Fullscreen (native browser)
+function FullscreenIcon({ size = 13 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+      <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+      <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+      <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+    </svg>
+  )
+}
+
+function ExitFullscreenIcon({ size = 13 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+      <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+      <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+      <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+    </svg>
+  )
+}
+
+export default function VideoTile({ trackRef, variant = 'tile', onExpand, onCollapse, isExpanded = false }) {
+  const articleRef = useRef(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
   const participant = trackRef?.participant
   const isScreenShare = trackRef?.source === Track.Source.ScreenShare
 
-  // FIX: derive video presence from participant state, not just track subscription
-  // This prevents the blank avatar bug when camera is toggled off then on
   const cameraEnabled = participant?.isCameraEnabled
   const hasVideo = isScreenShare
     ? (trackRef?.publication?.isSubscribed && trackRef?.publication?.track)
@@ -41,63 +70,92 @@ export default function VideoTile({ trackRef, variant = 'tile', onExpand, onColl
   const isMuted = !participant?.isMicrophoneEnabled
   const isLocal = participant?.isLocal
 
-  const initials = (participant?.name || participant?.identity || 'U')
-    .split(' ')
-    .map(w => w[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase()
-
-  // Screen-share: contain (no stretching) — Camera: cover (fills nicely)
+  const rawName = participant?.name || participant?.identity || ''
+  const initials = rawName ? rawName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() : '?'
+  const displayName = participant?.name || participant?.identity || 'Connecting…'
+  const nameReady = Boolean(participant?.name || participant?.identity)
   const objectFit = isScreenShare ? 'contain' : 'cover'
+
+  // Native fullscreen
+  const toggleFullscreen = useCallback(() => {
+    const el = articleRef.current
+    if (!el) return
+    if (!document.fullscreenElement) {
+      el.requestFullscreen?.().catch(() => {})
+    } else {
+      document.exitFullscreen?.().catch(() => {})
+    }
+  }, [])
+
+  const handleFullscreenChange = useCallback(() => {
+    setIsFullscreen(Boolean(document.fullscreenElement === articleRef.current))
+  }, [])
+
+  const attachRef = useCallback((el) => {
+    if (articleRef.current) {
+      articleRef.current.removeEventListener('fullscreenchange', handleFullscreenChange)
+    }
+    articleRef.current = el
+    if (el) {
+      el.addEventListener('fullscreenchange', handleFullscreenChange)
+    }
+  }, [handleFullscreenChange])
 
   return (
     <article
+      ref={attachRef}
       className={[
         'vtile',
         `vtile--${variant}`,
         isSpeaking ? 'is-speaking' : '',
         !hasVideo ? 'is-novideo' : '',
       ].filter(Boolean).join(' ')}
-      aria-label={`${participant?.name || participant?.identity || 'Participant'}${isLocal ? ' (you)' : ''}`}
+      aria-label={`${displayName}${isLocal ? ' (you)' : ''}`}
     >
-      {/* Video — always render when hasVideo, style enforces fit */}
       {hasVideo ? (
-        <VideoTrack
-          trackRef={trackRef}
-          className="vtile-track"
-          style={{ objectFit }}
-        />
+        <VideoTrack trackRef={trackRef} className="vtile-track" style={{ objectFit }} />
       ) : (
-        // Avatar — always shown when no video (cam off, or toggled back off)
         <div className="vtile-avatar-bg">
           <div className="vtile-avatar">{initials}</div>
         </div>
       )}
 
-      {/* Expand button (top-right) */}
-      {onExpand && (
+      {/* Action buttons — top-right, visible on hover */}
+      <div className="vtile-actions">
+        {/* Expand / collapse (in-app spotlight view) */}
+        {isExpanded ? (
+          <button
+            type="button"
+            className="vtile-action-btn"
+            onClick={onCollapse}
+            aria-label="Exit expanded view"
+            title="Exit expanded view"
+          >
+            <CollapseIcon size={12} />
+          </button>
+        ) : onExpand ? (
+          <button
+            type="button"
+            className="vtile-action-btn"
+            onClick={onExpand}
+            aria-label="Expand to main stage"
+            title="Expand view"
+          >
+            <ExpandIcon size={12} />
+          </button>
+        ) : null}
+
+        {/* Native fullscreen */}
         <button
           type="button"
-          className="vtile-expand-btn"
-          onClick={onExpand}
-          aria-label={`Expand ${participant?.name || 'participant'}`}
-          title="Expand to full view"
+          className="vtile-action-btn"
+          onClick={toggleFullscreen}
+          aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+          title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
         >
-          <ExpandIcon size={13} />
+          {isFullscreen ? <ExitFullscreenIcon size={12} /> : <FullscreenIcon size={12} />}
         </button>
-      )}
-      {onCollapse && (
-        <button
-          type="button"
-          className="vtile-expand-btn vtile-expand-btn--collapse"
-          onClick={onCollapse}
-          aria-label="Exit full view"
-          title="Exit full view"
-        >
-          <CollapseIcon size={13} />
-        </button>
-      )}
+      </div>
 
       {/* Name bar */}
       <div className="vtile-bar">
@@ -107,13 +165,14 @@ export default function VideoTile({ trackRef, variant = 'tile', onExpand, onColl
               <MicOffIcon size={13} />
             </span>
           )}
-          <span className="vtile-name">
-            {participant?.name || participant?.identity || 'User'}
-            {isLocal ? ' (You)' : ''}
-          </span>
+          {nameReady ? (
+            <span className="vtile-name">{displayName}{isLocal ? ' (You)' : ''}</span>
+          ) : (
+            <span className="vtile-name-skeleton" aria-hidden="true" />
+          )}
         </div>
         {isScreenShare && (
-          <span className="vtile-badge">
+          <span className="vtile-badge vtile-badge--screen">
             <ScreenShareIcon size={12} /> Presenting
           </span>
         )}

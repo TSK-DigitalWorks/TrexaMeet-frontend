@@ -4,7 +4,10 @@ import {
   ScreenShareIcon, ScreenShareOffIcon, ChatIcon, PeopleIcon, LeaveIcon
 } from './icons'
 
-export default function ControlBar({ onLeave, onToggleChat, onToggleParticipants, chatOpen, peopleOpen }) {
+export default function ControlBar({
+  onLeave, onToggleChat, onToggleParticipants,
+  chatOpen, peopleOpen, unread = 0
+}) {
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant()
   const room = useRoomContext()
   const isScreenSharing = localParticipant?.isScreenShareEnabled
@@ -25,7 +28,7 @@ export default function ControlBar({ onLeave, onToggleChat, onToggleParticipants
       <div className="meeting-dock-section meeting-dock-center">
         <button
           type="button"
-          className={`dock-btn ${!isMicrophoneEnabled ? 'dock-btn--off' : ''}`}
+          className={`dock-btn${!isMicrophoneEnabled ? ' dock-btn--off' : ''}`}
           onClick={() => localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)}
           aria-label={isMicrophoneEnabled ? 'Mute microphone' : 'Unmute microphone'}
         >
@@ -35,7 +38,7 @@ export default function ControlBar({ onLeave, onToggleChat, onToggleParticipants
 
         <button
           type="button"
-          className={`dock-btn ${!isCameraEnabled ? 'dock-btn--off' : ''}`}
+          className={`dock-btn${!isCameraEnabled ? ' dock-btn--off' : ''}`}
           onClick={() => localParticipant.setCameraEnabled(!isCameraEnabled)}
           aria-label={isCameraEnabled ? 'Turn off camera' : 'Turn on camera'}
         >
@@ -45,7 +48,7 @@ export default function ControlBar({ onLeave, onToggleChat, onToggleParticipants
 
         <button
           type="button"
-          className={`dock-btn ${isScreenSharing ? 'dock-btn--active' : ''}`}
+          className={`dock-btn${isScreenSharing ? ' dock-btn--active' : ''}`}
           onClick={() => localParticipant.setScreenShareEnabled(!isScreenSharing)}
           aria-label={isScreenSharing ? 'Stop screen share' : 'Share screen'}
         >
@@ -55,19 +58,28 @@ export default function ControlBar({ onLeave, onToggleChat, onToggleParticipants
 
         <div className="dock-divider" aria-hidden="true" />
 
+        {/* Chat — badge shows unread count when closed */}
         <button
           type="button"
-          className={`dock-btn ${chatOpen ? 'dock-btn--active' : ''}`}
+          className={`dock-btn${chatOpen ? ' dock-btn--active' : ''}`}
           onClick={onToggleChat}
           aria-label="Toggle chat"
+          style={{ position: 'relative' }}
         >
-          <span className="dock-btn-icon"><ChatIcon size={18} /></span>
+          <span className="dock-btn-icon" style={{ position: 'relative' }}>
+            <ChatIcon size={18} />
+            {unread > 0 && !chatOpen && (
+              <span className="dock-chat-badge" aria-label={`${unread} unread messages`}>
+                {unread > 9 ? '9+' : unread}
+              </span>
+            )}
+          </span>
           <span className="dock-btn-label">Chat</span>
         </button>
 
         <button
           type="button"
-          className={`dock-btn ${peopleOpen ? 'dock-btn--active' : ''}`}
+          className={`dock-btn${peopleOpen ? ' dock-btn--active' : ''}`}
           onClick={onToggleParticipants}
           aria-label="Toggle participants"
         >
@@ -78,12 +90,7 @@ export default function ControlBar({ onLeave, onToggleChat, onToggleParticipants
 
       {/* Right — leave */}
       <div className="meeting-dock-section meeting-dock-end">
-        <button
-          type="button"
-          className="dock-btn dock-btn--leave"
-          onClick={handleLeave}
-          aria-label="Leave meeting"
-        >
+        <button type="button" className="dock-btn dock-btn--leave" onClick={handleLeave} aria-label="Leave meeting">
           <span className="dock-btn-icon"><LeaveIcon size={18} /></span>
           <span className="dock-btn-label">Leave</span>
         </button>

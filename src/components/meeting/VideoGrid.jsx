@@ -4,7 +4,7 @@ import { Track } from 'livekit-client'
 import VideoTile from './VideoTile'
 
 export default function VideoGrid() {
-  const [spotlightId, setSpotlightId] = useState(null)
+  const [expandedIdentity, setExpandedIdentity] = useState(null)
 
   const tracks = useTracks(
     [
@@ -38,48 +38,47 @@ export default function VideoGrid() {
     )
   }
 
-  // Screen-share: spotlight the screen, cameras in strip
+  // Screen-share always uses spotlight layout — screen in main, cameras in strip
   if (screenTracks.length > 0) {
     return (
       <div className="grid-spotlight">
         <div className="grid-spotlight-main">
           {screenTracks.map(t => (
-            <VideoTile key={t.participant.identity + '-screen'} trackRef={t} variant="spotlight" />
+            <VideoTile key={`${t.participant.identity}-screen`} trackRef={t} variant="spotlight" />
           ))}
         </div>
         <div className="grid-spotlight-strip">
           {cameraTracks.map(t => (
-            <VideoTile key={t.participant.identity + '-cam'} trackRef={t} variant="strip" />
+            <VideoTile key={`${t.participant.identity}-cam`} trackRef={t} variant="strip" />
           ))}
         </div>
       </div>
     )
   }
 
-  // Manual spotlight mode (expand button clicked)
-  if (spotlightId) {
-    const main = cameraTracks.find(t => t.participant.identity === spotlightId)
-    const rest = cameraTracks.filter(t => t.participant.identity !== spotlightId)
-    // if the spotlighted person left, fall back to grid
-    if (!main) {
-      setSpotlightId(null)
-    } else {
+  // Expanded view: one tile is the main, rest go in a side strip
+  if (expandedIdentity) {
+    const expandedTrack = cameraTracks.find(t => t.participant.identity === expandedIdentity)
+    const restTracks = cameraTracks.filter(t => t.participant.identity !== expandedIdentity)
+
+    if (expandedTrack) {
       return (
         <div className="grid-spotlight">
           <div className="grid-spotlight-main">
             <VideoTile
-              trackRef={main}
+              trackRef={expandedTrack}
               variant="spotlight"
-              onCollapse={() => setSpotlightId(null)}
+              isExpanded
+              onCollapse={() => setExpandedIdentity(null)}
             />
           </div>
           <div className="grid-spotlight-strip">
-            {rest.map(t => (
+            {restTracks.map(t => (
               <VideoTile
-                key={t.participant.identity + '-cam'}
+                key={`${t.participant.identity}-cam`}
                 trackRef={t}
                 variant="strip"
-                onExpand={() => setSpotlightId(t.participant.identity)}
+                onExpand={() => setExpandedIdentity(t.participant.identity)}
               />
             ))}
           </div>
@@ -88,23 +87,22 @@ export default function VideoGrid() {
     }
   }
 
-  // Regular grid
+  // Normal grid
   const count = cameraTracks.length
-  const cls =
-    count === 1 ? 'video-grid--solo' :
-    count === 2 ? 'video-grid--duo' :
-    count <= 4 ? 'video-grid--quad' :
-    count <= 6 ? 'video-grid--hexa' :
-    'video-grid--many'
+  const cls = count === 1 ? 'video-grid--solo'
+    : count === 2 ? 'video-grid--duo'
+    : count <= 4 ? 'video-grid--quad'
+    : count <= 6 ? 'video-grid--hexa'
+    : 'video-grid--many'
 
   return (
     <div className={`video-grid ${cls}`}>
       {cameraTracks.map(t => (
         <VideoTile
-          key={t.participant.identity + '-cam'}
+          key={`${t.participant.identity}-cam`}
           trackRef={t}
           variant={count === 1 ? 'solo' : 'tile'}
-          onExpand={count > 1 ? () => setSpotlightId(t.participant.identity) : undefined}
+          onExpand={count > 1 ? () => setExpandedIdentity(t.participant.identity) : undefined}
         />
       ))}
     </div>

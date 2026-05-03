@@ -46,7 +46,11 @@
    ===================== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-html { scroll-behavior: smooth; }
+html, body, #root {
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;   /* the PAGE never scrolls — only inner panels do */
+}
 
 body {
   font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
@@ -977,28 +981,30 @@ ul { list-style: none; }
   --meet-danger-lt:     #fdecea;
   --meet-success:       #1e7e34;
   --meet-success-lt:    #e8f5e9;
-  --tile-bg:            #1a0a2e;   /* video tiles stay dark — cameras on dark bg look right */
+  --tile-bg:            #1a0a2e;
   --tile-surface:       #2d1050;
 
-  display: grid;
-  grid-template-rows: 56px 1fr 72px;
-  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
   background: var(--meet-bg);
   color: var(--meet-text);
-  overflow: hidden;
 }
 
 /* ── Header ───────────────────────────────────────────────────── */
 .meet-header {
+  flex-shrink: 0;           /* ← never squishes or grows */
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 0 20px;
+  gap: 12px;
   height: 56px;
-  background: var(--meet-surface);
+  padding: 0 16px;
   border-bottom: 1px solid var(--meet-border);
-  flex-shrink: 0;
+  background: var(--meet-surface);
+  overflow: hidden;
   box-shadow: 0 1px 4px rgba(139,0,201,0.06);
 }
 .meet-header-left {
@@ -1112,9 +1118,11 @@ ul { list-style: none; }
 .meet-body {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  min-height: 0;
+  flex: 1;                  /* fill all space between header and dock */
+  min-height: 0;            /* ← critical: allows children to shrink below content size */
   overflow: hidden;
 }
+
 .meet-body--panel-open {
   grid-template-columns: minmax(0, 1fr) 320px;
 }
@@ -1124,11 +1132,10 @@ ul { list-style: none; }
   background: var(--meet-bg);
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  min-height: 0;            /* ← critical */
+  overflow: hidden;
   padding: 12px;
   gap: 10px;
-  /* Stage itself does NOT scroll — the grid inside handles its own overflow */
-  overflow: hidden;
 }
 
 /* ── Side rail ────────────────────────────────────────────────── */
@@ -1137,8 +1144,8 @@ ul { list-style: none; }
   border-left: 1px solid var(--meet-border);
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
+  min-height: 0;            /* ← critical */
+  overflow: hidden;         /* clip — children scroll internally */
   box-shadow: -2px 0 12px rgba(139,0,201,0.05);
 }
 .meet-rail-head {
@@ -1172,12 +1179,12 @@ ul { list-style: none; }
 }
 /* Rail body: only this area scrolls, not the whole panel */
 .meet-rail-body {
-  overflow: hidden;    /* children manage their own scroll */
-  padding: 0;
-  min-height: 0;
+  flex: 1;
+  min-height: 0;            /* ← critical */
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  flex: 1;
+  padding: 0;
 }
 
 /* ── Empty states ─────────────────────────────────────────────── */
@@ -1339,28 +1346,58 @@ ul { list-style: none; }
   font-weight: 700;
 }
 
-/* Expand / collapse button — top-right */
-.vtile-expand-btn {
+/* ── Tile action buttons (expand + fullscreen) ───────────────────── */
+.vtile-actions {
   position: absolute;
   top: 8px;
   right: 8px;
-  z-index: 10;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  background: rgba(0,0,0,0.45);
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(255,255,255,0.15);
-  color: #fff;
+  display: flex;
+  gap: 5px;
+  opacity: 0;
+  transition: opacity 160ms;
+  z-index: 4;
+}
+.vtile:hover .vtile-actions {
+  opacity: 1;
+}
+.vtile-action-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.85);
   display: grid;
   place-items: center;
   cursor: pointer;
-  opacity: 0;
-  transition: opacity 160ms, background 140ms;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  transition: background 130ms, color 130ms;
 }
-.vtile:hover .vtile-expand-btn { opacity: 1; }
-.vtile-expand-btn:hover { background: rgba(139,0,201,0.7); }
-.vtile-expand-btn--collapse { opacity: 1; }   /* always visible in spotlight */
+.vtile-action-btn:hover {
+  background: rgba(139, 0, 201, 0.55);
+  border-color: rgba(139, 0, 201, 0.4);
+  color: #fff;
+}
+/* Fullscreen — contain video so nothing is cropped */
+.vtile:fullscreen { border-radius: 0 !important; background: #000; }
+.vtile:fullscreen .vtile-track { object-fit: contain !important; }
+.vtile:fullscreen .vtile-actions { opacity: 1; }
+
+/* Name skeleton shimmer */
+.vtile-name-skeleton {
+  display: inline-block;
+  width: 72px;
+  height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.13) 50%, rgba(255,255,255,0.06) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
 
 /* Name bar — bottom */
 .vtile-bar {
@@ -1403,6 +1440,7 @@ ul { list-style: none; }
 
 /* ── Bottom dock ──────────────────────────────────────────────── */
 .meeting-dock {
+  flex-shrink: 0;           /* ← stays at bottom, never pushed off */
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
@@ -1411,7 +1449,6 @@ ul { list-style: none; }
   height: 72px;
   background: var(--meet-surface);
   border-top: 1px solid var(--meet-border);
-  flex-shrink: 0;
   box-shadow: 0 -1px 4px rgba(139,0,201,0.05);
 }
 .meeting-dock-section { display: flex; align-items: center; gap: 6px; }
@@ -1538,26 +1575,27 @@ ul { list-style: none; }
 .chat-panel {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  padding: 12px 12px 0;
+  flex: 1;
+  min-height: 0;            /* ← critical */
+  overflow: hidden;
+  padding: 0 12px;
 }
 /* ONLY the feed scrolls — not the whole rail */
 .chat-feed {
   flex: 1;
+  min-height: 0;            /* ← critical */
   overflow-y: auto;
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-height: 0;
-  padding-bottom: 8px;
+  padding: 12px 0;
   scrollbar-width: thin;
   scrollbar-color: var(--meet-border) transparent;
 }
-.chat-feed::-webkit-scrollbar        { width: 4px; }
-.chat-feed::-webkit-scrollbar-track  { background: transparent; }
-.chat-feed::-webkit-scrollbar-thumb  { background: var(--meet-border); border-radius: 4px; }
+.chat-feed::-webkit-scrollbar { width: 4px; }
+.chat-feed::-webkit-scrollbar-track { background: transparent; }
+.chat-feed::-webkit-scrollbar-thumb { background: var(--meet-border); border-radius: 4px; }
 
 .chat-msg { display: grid; gap: 3px; }
 .chat-msg--own { justify-items: end; }
@@ -1586,13 +1624,12 @@ ul { list-style: none; }
   color: var(--meet-primary-text);
 }
 .chat-compose {
+  flex-shrink: 0;
   display: grid;
   grid-template-columns: 1fr 38px;
   gap: 8px;
   padding: 10px 0 12px;
   border-top: 1px solid var(--meet-border);
-  flex-shrink: 0;
-  background: var(--meet-surface);
 }
 .chat-input {
   height: 38px;
@@ -1949,6 +1986,82 @@ ul { list-style: none; }
   overflow: hidden;
 }
 
+/* ── Dock chat badge (on the icon itself) ─────────────────────── */
+.dock-chat-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--meet-primary);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+  pointer-events: none;
+  border: 1.5px solid var(--meet-bg);
+}
+
+/* ── Participant remove button ────────────────────────────────── */
+.pax-remove-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--meet-text-faint);
+  cursor: pointer;
+  transition: background 120ms, color 120ms, border-color 120ms;
+  flex-shrink: 0;
+}
+.pax-remove-btn:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--meet-danger);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+.pax-remove-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.pax-removing-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(239, 68, 68, 0.3);
+  border-top-color: var(--meet-danger);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Video tile name skeleton shimmer ─────────────────────────── */
+.vtile-name-skeleton {
+  display: inline-block;
+  width: 72px;
+  height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.06) 25%,
+    rgba(255,255,255,0.12) 50%,
+    rgba(255,255,255,0.06) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
 /* ── Responsive ───────────────────────────────────────────────── */
 @media (max-width: 1100px) {
   .meet-body--panel-open { grid-template-columns: 1fr; }
@@ -2014,3 +2127,297 @@ ul { list-style: none; }
   .prejoin-preview { aspect-ratio: 16/9; }
   .prejoin-info { padding: 20px; }
 }
+
+/* ── Chat panel: scroll ONLY inside the feed, not the whole page ─ */
+.meet-rail-body {
+  /* already has overflow-y: auto from base styles — these ensure the
+     chat-panel itself is a flex column that fills the rail */
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden; /* clip — child handles its own scroll */
+}
+
+.chat-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.chat-feed {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 0;
+  /* Custom thin scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: var(--meet-border) transparent;
+}
+.chat-feed::-webkit-scrollbar { width: 4px; }
+.chat-feed::-webkit-scrollbar-track { background: transparent; }
+.chat-feed::-webkit-scrollbar-thumb { background: var(--meet-border); border-radius: 4px; }
+
+.chat-compose {
+  flex-shrink: 0; /* stays at bottom, never scrolls away */
+  display: grid;
+  grid-template-columns: 1fr 38px;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--meet-border);
+}
+
+/* ── Video tile expand / fullscreen button ───────────────────────── */
+.vtile-expand-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.85);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 160ms, background 160ms;
+  z-index: 4;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.vtile:hover .vtile-expand-btn,
+.vtile--fullscreen .vtile-expand-btn {
+  opacity: 1;
+}
+.vtile-expand-btn:hover {
+  background: rgba(139, 0, 201, 0.55);
+  border-color: rgba(139, 0, 201, 0.4);
+  color: #fff;
+}
+/* Fullscreen — tile fills the screen, video centred */
+.vtile--fullscreen,
+.vtile:fullscreen {
+  border-radius: 0 !important;
+  background: #000;
+}
+.vtile:fullscreen .vtile-track,
+.vtile--fullscreen .vtile-track {
+  object-fit: contain !important;
+}
+
+/* ── Invite Modal ─────────────────────────────────────────────────── */
+.invite-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
+  z-index: 500;
+  padding: 20px;
+  animation: backdrop-in 180ms ease;
+}
+@keyframes backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.invite-modal-card {
+  background: var(--meet-surface);
+  border: 1px solid var(--meet-border);
+  border-radius: 18px;
+  width: min(460px, 100%);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(139, 0, 201, 0.12);
+  overflow: hidden;
+  animation: card-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.invite-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--meet-border);
+}
+.invite-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--meet-text);
+}
+.invite-modal-title svg {
+  color: var(--meet-primary);
+  flex-shrink: 0;
+}
+.invite-modal-close {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: var(--meet-text-muted);
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.invite-modal-close:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--meet-text);
+}
+.invite-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+}
+.invite-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.invite-field-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--meet-text-faint);
+}
+.invite-field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--meet-bg);
+  border: 1.5px solid var(--meet-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  min-height: 42px;
+}
+.invite-field-row--readonly {
+  background: var(--meet-surface-2);
+}
+.invite-field-value {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--meet-text);
+  font-family: Menlo, Consolas, 'Courier New', monospace;
+  word-break: break-all;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.invite-field-row--readonly .invite-field-value {
+  font-family: inherit;
+  color: var(--meet-text-muted);
+}
+.invite-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 7px;
+  background: var(--meet-surface-2);
+  border: 1px solid var(--meet-border);
+  color: var(--meet-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 130ms, color 130ms, border-color 130ms;
+}
+.invite-copy-btn:hover {
+  background: var(--meet-primary-lt);
+  color: var(--meet-primary-text, #d8b4fe);
+  border-color: rgba(139, 0, 201, 0.25);
+}
+.invite-copy-btn.copied {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.2);
+}
+.invite-modal-hint {
+  padding: 0 20px 18px;
+  font-size: 12px;
+  color: var(--meet-text-faint);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ── Remove participant modal ────────────────────────────────────── */
+.remove-modal {
+  max-width: 380px;
+  width: calc(100% - 32px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  padding: 32px 24px 24px;
+}
+
+.remove-modal-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(220, 38, 38, 0.12);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  display: grid;
+  place-items: center;
+  color: var(--meet-danger, #ef4444);
+  flex-shrink: 0;
+}
+
+.remove-modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--meet-text);
+  margin: 0;
+}
+
+.remove-modal-body {
+  font-size: 13px;
+  color: var(--meet-text-muted);
+  line-height: 1.55;
+  margin: 0;
+  max-width: 28ch;
+}
+
+.remove-modal-actions {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.remove-modal-actions .btn {
+  flex: 1;
+  height: 38px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 10px;
+}
+
+/* Remove button in participant row */
+.rail-icon-btn--remove:hover {
+  background: rgba(220, 38, 38, 0.12);
+  color: var(--meet-danger, #ef4444);
+  border-color: rgba(220, 38, 38, 0.2);
+}
+
+
