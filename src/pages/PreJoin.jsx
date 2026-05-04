@@ -125,20 +125,14 @@ export default function PreJoin() {
       // If we already have the token (creator coming from NewMeeting), skip the API call
       if (location.state?.livekittoken) {
         setRoomPayload(location.state)
-        navigate(
-          location.state.room?.type === 'webinar' ? `/webinar/${code}` : `/room/${code}`,
-          { state: location.state }
-        )
+        navigate(`/room/${code}`, { state: location.state })  // WEBINAR DISABLED
         return
       }
 
       // Otherwise (joining via code) — fetch token from backend
       const data = await api.post(`/api/rooms/${code}/join`)
       setRoomPayload(data)
-      navigate(
-        data.room?.type === 'webinar' ? `/webinar/${code}` : `/room/${code}`,
-        { state: data }
-      )
+      navigate(`/room/${code}`, { state: data })  // WEBINAR DISABLED
     } catch (err) {
       setError(err?.response?.data?.error || 'Unable to join the meeting. Please try again.')
       setJoining(false)

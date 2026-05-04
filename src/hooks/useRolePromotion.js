@@ -1,3 +1,5 @@
+// NOTE: This hook is used by WebinarStage which is currently DISABLED.
+// Safe to leave as-is — it is not imported anywhere active.
 import { useEffect } from 'react'
 import { useRoomContext } from '@livekit/components-react'
 import { supabase } from '../lib/supabase'

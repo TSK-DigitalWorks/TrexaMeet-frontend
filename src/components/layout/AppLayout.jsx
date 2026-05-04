@@ -5,7 +5,7 @@ import logoImg from '/logo.png'
 
 const titleMap = {
   '/':        { title: 'Dashboard',     sub: 'Start or join a meeting' },
-  '/new':     { title: 'New Meeting',   sub: 'Create a meeting or webinar' },
+  '/new':     { title: 'New Meeting',   sub: 'Create a meeting' },
   '/join':    { title: 'Join Meeting',  sub: 'Enter a room code to join' },
   '/history': { title: 'Call History',  sub: 'Your past meetings and calls' },
 }

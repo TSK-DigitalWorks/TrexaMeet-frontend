@@ -10,13 +10,13 @@ export default function WebinarRoom() {
   const location = useLocation()
   const navigate = useNavigate()
 
-  const setRoomPayload = useRoomStore((s) => s.setRoomPayload)
-  const resetRoom      = useRoomStore((s) => s.resetRoom)
-  const preJoin        = useRoomStore((s) => s.preJoin)
-  const room           = useRoomStore((s) => s.room)
-  const myRole         = useRoomStore((s) => s.myRole)
-  const livekitToken   = useRoomStore((s) => s.livekitToken)
-  const livekitUrl     = useRoomStore((s) => s.livekitUrl)
+  const setRoomPayload = useRoomStore(s => s.setRoomPayload)
+  const resetRoom      = useRoomStore(s => s.resetRoom)
+  const preJoin        = useRoomStore(s => s.preJoin)
+  const room           = useRoomStore(s => s.room)
+  const myRole         = useRoomStore(s => s.myRole)
+  const livekitToken   = useRoomStore(s => s.livekitToken)
+  const livekitUrl     = useRoomStore(s => s.livekitUrl)
 
   const leavingRef = useRef(false)
 
@@ -36,23 +36,20 @@ export default function WebinarRoom() {
     })()
   }, [roomCode]) // eslint-disable-line
 
-  const handleLeave = async () => {
+  const handleLeave = () => {
     if (leavingRef.current) return
     leavingRef.current = true
-    // Fire-and-forget the leave API — don't await it
     api.post(`/api/rooms/${roomCode}/leave`).catch(() => {})
     resetRoom()
-    navigate('/')
+    navigate(`/meeting-ended/${roomCode}`, { replace: true })
   }
 
   if (!livekitToken || !livekitUrl) {
     return <div className="card">Connecting to webinar…</div>
   }
 
-  // Audience tokens already have canPublish:false on the backend,
-  // so these flags just control whether the browser captures media at all
-  const publishVideo = myRole !== 'audience' && preJoin.camEnabled
-  const publishAudio = myRole !== 'audience' && preJoin.micEnabled
+  const publishVideo = myRole !== 'audience' && preJoin?.camEnabled
+  const publishAudio = myRole !== 'audience' && preJoin?.micEnabled
 
   return (
     <LiveKitRoom
@@ -63,12 +60,7 @@ export default function WebinarRoom() {
       audio={publishAudio}
       onDisconnected={handleLeave}
     >
-      <WebinarStage
-        roomCode={roomCode}
-        room={room}
-        myRole={myRole}
-        onLeave={handleLeave}
-      />
+      <WebinarStage roomCode={roomCode} room={room} myRole={myRole} onLeave={handleLeave} />
     </LiveKitRoom>
   )
 }

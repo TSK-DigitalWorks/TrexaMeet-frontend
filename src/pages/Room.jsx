@@ -10,13 +10,13 @@ export default function Room() {
   const location = useLocation()
   const navigate = useNavigate()
 
-  const setRoomPayload  = useRoomStore((s) => s.setRoomPayload)
-  const resetRoom       = useRoomStore((s) => s.resetRoom)
-  const preJoin         = useRoomStore((s) => s.preJoin)
-  const room            = useRoomStore((s) => s.room)
-  const myRole          = useRoomStore((s) => s.myRole)
-  const livekitToken    = useRoomStore((s) => s.livekitToken)
-  const livekitUrl      = useRoomStore((s) => s.livekitUrl)
+  const setRoomPayload = useRoomStore(s => s.setRoomPayload)
+  const resetRoom      = useRoomStore(s => s.resetRoom)
+  const preJoin        = useRoomStore(s => s.preJoin)
+  const room           = useRoomStore(s => s.room)
+  const myRole         = useRoomStore(s => s.myRole)
+  const livekitToken   = useRoomStore(s => s.livekitToken)
+  const livekitUrl     = useRoomStore(s => s.livekitUrl)
 
   const leavingRef = useRef(false)
 
@@ -36,13 +36,12 @@ export default function Room() {
     })()
   }, [roomCode]) // eslint-disable-line
 
-  const handleLeave = async () => {
+  const handleLeave = () => {
     if (leavingRef.current) return
     leavingRef.current = true
-    // Fire-and-forget the leave API — don't await it
     api.post(`/api/rooms/${roomCode}/leave`).catch(() => {})
     resetRoom()
-    navigate('/')
+    navigate(`/meeting-ended/${roomCode}`, { replace: true })
   }
 
   if (!livekitToken || !livekitUrl) {
@@ -54,16 +53,11 @@ export default function Room() {
       serverUrl={livekitUrl}
       token={livekitToken}
       connect={true}
-      video={preJoin.camEnabled}
-      audio={preJoin.micEnabled}
+      video={preJoin?.camEnabled}
+      audio={preJoin?.micEnabled}
       onDisconnected={handleLeave}
     >
-      <MeetingRoom
-        roomCode={roomCode}
-        room={room}
-        myRole={myRole}
-        onLeave={handleLeave}
-      />
+      <MeetingRoom roomCode={roomCode} room={room} onLeave={handleLeave} />
     </LiveKitRoom>
   )
 }

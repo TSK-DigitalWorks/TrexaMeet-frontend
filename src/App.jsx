@@ -11,6 +11,7 @@ import WebinarRoom from './pages/WebinarRoom'
 import History from './pages/History'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
+import MeetingEnded from './pages/MeetingEnded'
 import useAuth from './hooks/useAuth'
 import useIncomingCall from './hooks/useIncomingCall'
 
@@ -32,14 +33,14 @@ function DashboardRoutes() {
 function ProtectedShell() {
   useAuth()
   useIncomingCall()
-
   return (
     <AuthGuard>
       <IncomingCall />
       <Routes>
         <Route path="/room/:roomCode" element={<Room />} />
         <Route path="/webinar/:roomCode" element={<WebinarRoom />} />
-        <Route path="/*" element={<DashboardRoutes />} />
+        <Route path="/meeting-ended/:roomCode" element={<MeetingEnded />} />
+        <Route path="*" element={<DashboardRoutes />} />
       </Routes>
     </AuthGuard>
   )
@@ -50,7 +51,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
-      <Route path="/*" element={<ProtectedShell />} />
+      <Route path="*" element={<ProtectedShell />} />
     </Routes>
   )
 }
